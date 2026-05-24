@@ -26,8 +26,8 @@ type RemoteClient struct {
 type MessageType uint16
 
 const (
-	MessageTypeFrameUpdate MessageType = 0xC002
-	MessageTypeInputEvent  MessageType = 0xC003
+	MessageTypeFrameRequest MessageType = 0xC002
+	MessageTypeInputEvent   MessageType = 0xC003
 )
 
 // readFromTcp reads exactly len(buf) bytes from conn, retrying on short reads.
@@ -81,8 +81,8 @@ func (ci *RemoteClient) Run() {
 			// Handle client info message (e.g., parse client capabilities, etc.)
 			// For now, we can ignore it or log it as needed.
 			ci.handleClientInfo(buffer[headerSize : headerSize+messageLen])
-		case MessageTypeFrameUpdate:
-			ci.handleFrameUpdate(buffer[headerSize : headerSize+messageLen])
+		case MessageTypeFrameRequest:
+			ci.handleFrameRequest(buffer[headerSize : headerSize+messageLen])
 		case MessageTypeInputEvent:
 			ci.handleInputEvent(buffer[headerSize : headerSize+messageLen])
 		default:
@@ -142,7 +142,7 @@ func (ci *RemoteClient) handleClientInfo(data []byte) {
 
 }
 
-func (ci *RemoteClient) handleFrameUpdate(data []byte) {
+func (ci *RemoteClient) handleFrameRequest(data []byte) {
 	//	prev, curr := ci.userInterface.Render()
 
 	// Encode the frame data
