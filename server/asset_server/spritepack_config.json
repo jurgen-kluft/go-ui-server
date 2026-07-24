@@ -1,0 +1,50 @@
+{
+    "sprites": [
+        {
+            "image_file": "spritemaps/buttons.png",
+            "sprites": [
+                {
+                    "name": "button_on",
+                    "id": 0,
+                    "pixel_format": "RGB565",
+                    "alpha_format": "A4",
+                    "rect": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 64,
+                        "h": 64
+                    }
+                },
+                {
+                    "name": "button_off",
+                    "id": 1,
+                    "pixel_format": "RGB565",
+                    "alpha_format": "A4",
+                    "rect": {
+                        "x": 64,
+                        "y": 0,
+                        "w": 64,
+                        "h": 64
+                    }
+                }
+            ]
+        },
+        {
+            "image_file": "spritemaps/icons.png",
+            "palette_file": "spritemaps/icons.png",
+            "sprites": [
+                {
+                    "name": "icon",
+                    "id": 2,
+                    "pixel_format": "I8",
+                    "rect": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 64,
+                        "h": 64
+                    }
+                }
+            ]
+        }
+    ]
+}

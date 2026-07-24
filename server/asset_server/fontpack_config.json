@@ -1,0 +1,17 @@
+{
+    "fonts": [
+        {
+            "file": "fonts/roboto/roboto-regular.ttf",
+            "fonts": [
+                {
+                    "name": "Roboto-Regular",
+                    "id": 0,
+                    "size": 24,
+                    "chars":  "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?-+*/=()[]{}<>@#$%^&~`'\";:_|\\",
+                    "glyphs": "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,!?-+*/=()[]{}<>@#$%^&~`'\";:_|\\"
+                }
+            ]
+        }
+    ]
+}
+

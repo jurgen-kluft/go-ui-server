@@ -1,0 +1,13 @@
+{
+    "Port": 8332,
+    "RemoteClients": [
+        {
+            "Name": "Kitchen",
+            "MacAddress": "00:11:22:33:44:55"
+        }
+    ],
+    "CacheDir": "path/to/cache",
+    "FontPackCfgFile": "path/to/fontpack_config.json",
+    "SpritePackCfgFile": "path/to/spritepack_config.json",
+    "PalettePackCfgFile": "path/to/palettepack_config.json"
+}

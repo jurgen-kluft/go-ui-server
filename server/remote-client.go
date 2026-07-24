@@ -2,150 +2,99 @@ package remote_ui_server
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 )
 
-// A UI instance running on their own go-routine serving a remote client.
-// Main driver is the TCP connection, receiving messages from the client and acting on it.
-
-// The connection will wait until the client sends a message, which can be either:
-// - Message requesting a UI frame update
-//   - render the current page
-//   - frame encoder (previous frame and current frame)
-//   - send the compressed frame to the client
-//   - go back to waiting for the next message
-// - Message reporting an input event
-//   - call one of the UI instance input functions (OnTouch, OnSwipe, OnButton, OnRotary)
-
 type RemoteClient struct {
-	tcpConn       net.Conn
-	userInterface RemoteUserInterface
+	tcpConn net.Conn
 }
 
 // Message Types
 type MessageType uint16
 
 const (
-	MessageTypeFrameRequest MessageType = 0xC002
-	MessageTypeInputEvent   MessageType = 0xC003
+	MessageTypeAsset  MessageType = 0xC002
+	MessageTypeScript MessageType = 0xC003
 )
 
-// readFromTcp reads exactly len(buf) bytes from conn, retrying on short reads.
-// Returns an error if the connection is closed before the buffer is filled.
-func readFromTcp(conn net.Conn, buf []byte) (int, error) {
-	total := 0
-	for total < len(buf) {
-		n, err := conn.Read(buf[total:])
-		total += n
-		if err != nil {
-			return total, err
-		}
-	}
-	return total, nil
-}
+func ClientUpload(conn net.Conn, scriptBytes []byte, assetDbBytes []byte) error {
 
-// HandleConnection runs in a go-routine and manages
-// the lifecycle of the connection, including receiving
-// messages from the client, processing them, and sending
-// responses back.
-// It will loop indefinitely until the connection is closed
-// by either the client or the server.
-func (ci *RemoteClient) Run() {
+	blockSize := 8192 // 8 KB block size
+	blockIndex := 0
+	blockCount := (len(assetDbBytes) + blockSize - 1) / blockSize // Calculate the number of blocks needed
 
-	// - Message size is always < 1280 bytes
-	// - We want to re-use the same buffer for each message to avoid unnecessary allocations
-	// - When we receive a request to render a frame, we know the client is in a state to
-	//   receive the frame data, and so it will not send other messages until it receives
-	//   the frame data, so we can safely use the same buffer for both reading messages and
-	//   sending frame data.
+	sendBuffer := make([]byte, 16384)
 
-	const headerSize = 4
-	buffer := make([]byte, 1280)
 	for {
-		// Read the 4-byte header: [messageType(uint16 LE), messageLen(uint16 LE)]
-		if _, err := readFromTcp(ci.tcpConn, buffer[:headerSize]); err != nil {
+		// Send the asset database to the client, block by block.
+		// The format of the message is:
+		// - 2 bytes: message type (0xC002 for asset database)
+		// - 2 bytes: length of the asset database in bytes
+		// - 2 bytes: number of blocks (each block is 8 KB)
+		// - 2 bytes: block index (0-based)
+		// - 8 KB: block data (last block may be smaller than 8 KB)
+
+		if blockIndex < blockCount {
+			// Calculate the start and end indices for the current block
+			start := blockIndex * blockSize
+			end := start + blockSize
+			if end > len(assetDbBytes) {
+				end = len(assetDbBytes)
+			}
+
+			// Prepare the message header
+			const headerSize = 8
+			messageType := MessageTypeAsset
+			messageLength := uint16(end - start)
+			numBlocks := uint16(blockCount)
+			blockIdx := uint16(blockIndex)
+
+			// Create a buffer for the message
+			binary.BigEndian.PutUint16(sendBuffer[0:2], uint16(messageType))
+			binary.BigEndian.PutUint16(sendBuffer[2:4], messageLength)
+			binary.BigEndian.PutUint16(sendBuffer[4:6], numBlocks)
+			binary.BigEndian.PutUint16(sendBuffer[6:8], blockIdx)
+
+			// Copy the block data into the buffer
+			copy(sendBuffer[headerSize:], assetDbBytes[start:end])
+
+			// Send the message to the client
+			_, err := conn.Write(sendBuffer[:headerSize+(end-start)])
+			if err != nil {
+				return fmt.Errorf("error sending asset database block %d: %v", blockIndex, err)
+			}
+
+			// Move to the next block
+			blockIndex++
+		} else {
+			// All blocks have been sent, exit the loop
 			break
 		}
-		messageType := MessageType(binary.LittleEndian.Uint16(buffer[0:2]))
-		messageLen := int(binary.LittleEndian.Uint16(buffer[2:4]))
-
-		// Read the message body (messageLen bytes) after the header
-		if messageLen > 0 {
-			if _, err := readFromTcp(ci.tcpConn, buffer[headerSize:headerSize+messageLen]); err != nil {
-				break
-			}
-		}
-
-		switch messageType {
-		case MessageTypeClientInfo:
-			// Handle client info message (e.g., parse client capabilities, etc.)
-			// For now, we can ignore it or log it as needed.
-			ci.handleClientInfo(buffer[headerSize : headerSize+messageLen])
-		case MessageTypeFrameRequest:
-			ci.handleFrameRequest(buffer[headerSize : headerSize+messageLen])
-		case MessageTypeInputEvent:
-			ci.handleInputEvent(buffer[headerSize : headerSize+messageLen])
-		default:
-			// Handle unknown message type (e.g., log it, ignore it, etc.)
-		}
 	}
-}
 
-// Input message formats:
-// - Touch event: [InputTypeTouch(uint16), x(int16), y(int16)]
-// - Swipe event: [InputTypeSwipe(uint16), direction(int8), distance(int16)]
-// - Button event: [InputTypeButton(uint16), buttonId(int16), state(int16)]
-// - Rotary event: [InputTypeRotary(uint16), rotation(int32)]
+	// After sending the asset database, send the script file to the client.
+	// The format of the message is:
+	// - 2 bytes: message type (0xC003 for script file)
+	// - 2 bytes: length of the script file in bytes
+	// - N bytes: script file data
 
-type InputType uint16
+	messageType := MessageTypeScript
+	messageLength := uint16(len(scriptBytes))
 
-const (
-	InputTypeTouch  InputType = 0x1201
-	InputTypeSwipe  InputType = 0x1202
-	InputTypeButton InputType = 0x1203
-	InputTypeRotary InputType = 0x1204
-)
+	// Create a buffer for the message
+	const headerSize = 4
+	binary.BigEndian.PutUint16(sendBuffer[0:2], uint16(messageType))
+	binary.BigEndian.PutUint16(sendBuffer[2:4], messageLength)
 
-func (ci *RemoteClient) handleInputEvent(data []byte) {
+	// Copy the script file data into the buffer
+	copy(sendBuffer[headerSize:], scriptBytes)
 
-	// Parse the input event data and call the appropriate UI instance input function
-	inputType := InputType(binary.LittleEndian.Uint16(data[0:2])) // Assuming the first byte indicates the input type
-
-	switch InputType(inputType) {
-	case InputTypeTouch:
-		x := int(binary.LittleEndian.Uint16(data[2:4])) // Read x coordinate (2 bytes)
-		y := int(binary.LittleEndian.Uint16(data[4:6])) // Read y coordinate (2 bytes)
-		ci.userInterface.OnTouch(x, y)
-
-	case InputTypeSwipe:
-		direction := int(int8(data[2]))                        // Read direction (1 byte)
-		distance := int(binary.LittleEndian.Uint16(data[3:5])) // Read distance (2 bytes)
-		ci.userInterface.OnSwipe(direction, distance)
-
-	case InputTypeButton:
-		buttonId := int(binary.LittleEndian.Uint16(data[2:4])) // Read button ID (2 bytes)
-		state := int(binary.LittleEndian.Uint16(data[4:6]))    // Read button state (2 bytes)
-		ci.userInterface.OnButton(buttonId, state)
-
-	case InputTypeRotary:
-		rotation := int(binary.LittleEndian.Uint32(data[2:6])) // Read rotation (4 bytes)
-		ci.userInterface.OnRotary(rotation)
-
-	default:
-		// Handle unknown input type (e.g., log it, ignore it, etc.)
+	// Send the message to the client
+	_, err := conn.Write(sendBuffer[:headerSize+len(scriptBytes)])
+	if err != nil {
+		return fmt.Errorf("error sending script file: %v", err)
 	}
-}
 
-func (ci *RemoteClient) handleClientInfo(data []byte) {
-	// Handle client info message (e.g., parse client capabilities, etc.)
-	// For now, we can ignore it or log it as needed.
-
-}
-
-func (ci *RemoteClient) handleFrameRequest(data []byte) {
-	//	prev, curr := ci.userInterface.Render()
-
-	// Encode the frame data
-
-	// Send the frame data to the client
+	return nil
 }

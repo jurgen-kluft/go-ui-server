@@ -1,6 +1,8 @@
-# UI Server
+# Asset Server
 
-A UI server that can render the UI for a connected client and compress the frame before sending it over TCP back to the client.
+An asset server that serves assets, sprites, fonts, palettes, over TCP to connected clients.
 
+## Setup
 
+The server reads a configuration file, prepares (convert) the assets and then serves the assets to clients over TCP.
 

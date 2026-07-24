@@ -1,0 +1,12 @@
+{
+    "palettes": [
+        {
+            "id": 0,
+            "file": "spritemaps/buttons.png"
+        },
+        {
+            "id": 1,
+            "file": "spritemaps/icons.png"
+        }
+    ]
+}
