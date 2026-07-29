@@ -5,33 +5,25 @@ import (
 	"os"
 )
 
-type FontDescriptor struct {
-	Id   int    `json:"Id"`
-	Path string `json:"Path"`
-}
-
-type SpriteDescriptor struct {
-	Id   int    `json:"Id"`
-	Path string `json:"Path"`
-}
-
-type RemoteClientDescriptor struct {
+type ClientDescriptor struct {
 	Name       string `json:"Name"`
 	MacAddress string `json:"MacAddress"`
+	Assets     string `json:"Assets"`
 }
 
-type Configuration struct {
-	// The port on which the server listens for incoming connections.
-	Port int `json:"Port"`
-
+type AssetDescriptor struct {
+	Name               string `json:"Name"`
 	FontPackCfgFile    string `json:"FontPackCfgFile"`
 	SpritePackCfgFile  string `json:"SpritePackCfgFile"`
 	PalettePackCfgFile string `json:"PalettePackCfgFile"`
 	ScriptFile         string `json:"ScriptFile"`
+}
 
-	// List of remote clients that are allowed to connect, identified by their MAC address
-	// and the user interface they should be served.
-	AllowedClients []string `json:"AllowedClients"`
+type Configuration struct {
+	Port     int                         `json:"Port"`
+	CacheDir string                      `json:"CacheDir"`
+	Assets   map[string]AssetDescriptor  `json:"Assets"`
+	Clients  map[string]ClientDescriptor `json:"Clients"`
 }
 
 func LoadConfig(filepath string) (*Configuration, error) {

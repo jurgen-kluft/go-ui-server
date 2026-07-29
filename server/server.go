@@ -3,22 +3,15 @@ package remote_ui_server
 import (
 	"fmt"
 	"net"
-	"os"
 )
 
 type AssetServer struct {
-	config         *Configuration
-	AllowedClients map[string]bool
+	config *Configuration
 }
 
 func NewAssetServer(config *Configuration) *AssetServer {
 	server := &AssetServer{
 		config: config,
-	}
-
-	server.AllowedClients = make(map[string]bool)
-	for _, mac := range config.AllowedClients {
-		server.AllowedClients[mac] = true
 	}
 
 	return server
@@ -27,15 +20,9 @@ func NewAssetServer(config *Configuration) *AssetServer {
 func (s *AssetServer) Start() error {
 
 	// Load all sprite packs and font packs into memory, so they can be shared across user interfaces.
-	assetDb, err := BuildAssetDatabase(s.config.SpritePackCfgFile, s.config.FontPackCfgFile)
+	assetDb, err := BuildAssetDatabase(s.config.Assets)
 	if err != nil {
 		return fmt.Errorf("failed to build asset database: %v", err)
-	}
-	assetDbBytes := assetDb.GetBytes()
-
-	scriptBytes, err := os.ReadFile(s.config.ScriptFile)
-	if err != nil {
-		return fmt.Errorf("failed to read script file: %v", err)
 	}
 
 	// Start TCP server and listen for incoming connections. For each new connection:
@@ -78,8 +65,10 @@ func (s *AssetServer) Start() error {
 					return
 				}
 
-				if !s.AllowedClients[macAddressStr] {
+				if client, ok := s.config.Clients[macAddressStr]; ok {
 					// Launch the upload task in a new go-routine, so it can run concurrently and independently.
+					scriptBytes := assetDb.GetScriptBytesFor(client.Name)
+					assetDbBytes := assetDb.GetBytesFor(client.Name)
 					go func() {
 						ClientUpload(conn, scriptBytes, assetDbBytes)
 					}()
